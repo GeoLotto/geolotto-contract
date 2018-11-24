@@ -102,6 +102,11 @@ contract Lottery {
         _;
     }
 
+    modifier userJoinedTheLottery(bytes32 _region) {
+        require(lotteries[_region].participations[msg.sender].length != 0, "Lottery has not been joined");
+        _;
+    }
+
     constructor(address _owner) public {
         owner = _owner;
     }
@@ -184,6 +189,7 @@ contract Lottery {
     lotteryExists(_region)
     positionMatchesRegion(_region, _latitude, _longitude)
     lotteryActive(_region)
+    userJoinedTheLottery(_region)
     {
         LotteryParticipation memory participation = LotteryParticipation({
             position: [_latitude, _longitude],
