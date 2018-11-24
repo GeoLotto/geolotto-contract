@@ -2,9 +2,14 @@ pragma solidity ^0.4.24;
 
 contract Lottery {
 
+    // Enums
+
+    enum LotteryStatus { Active, Finshed }
+
     // Fields
 
     address owner;
+    uint nonce = 0;
     mapping(bytes32 => Lottery) public lotteries;
 
     // Types
@@ -15,7 +20,18 @@ contract Lottery {
         uint participationTime; // timestamp
     }
 
+    struct LotteryWinnings {
+        address winner;
+        uint deposit;
+        uint winning;
+        uint8 inAreaDuePercentageRatio;
+        uint8 areaWinningRatio;
+    }
+
     struct Lottery {
+
+        LotteryStatus status;
+
         uint launchTime; // timestamp
         uint endTime; // timestamp
 
@@ -26,8 +42,13 @@ contract Lottery {
         address[] participants;
         mapping(address => LotteryParticipation[]) participations;
 
+        // Lottery Winners
+
+        LotteryWinnings[] winnings;
+
         uint minDeposit;
         uint16[2] winningPoint;
+        uint16[2] winningAreasRadius;
 
         // Lottery region params
         uint16 latitudeMin;
@@ -107,6 +128,11 @@ contract Lottery {
         _;
     }
 
+    modifier lotteryFinished(bytes32 _region) {
+        require(lotteries[_region].endTime < now, "Lottery is still active");
+        _;
+    }
+
     constructor(address _owner) public {
         owner = _owner;
     }
@@ -119,7 +145,9 @@ contract Lottery {
         uint16 _longitudeMax,
         uint _minDeposit, 
         uint _endTime, 
-        uint64 _maxMembersNumber) public onlyOwner() {
+        uint64 _maxMembersNumber,
+        uint16 _firstWinningAreaRadius,
+        uint16 _secondWinningAreaRadius) public onlyOwner() {
         
         Lottery memory lottery;
 
@@ -132,6 +160,10 @@ contract Lottery {
         lottery.latitudeMax = _latitudeMax;
         lottery.longitudeMin = _longitudeMin;
         lottery.longitudeMax = _longitudeMax;
+
+        lottery.winningAreasRadius = [_firstWinningAreaRadius, _secondWinningAreaRadius];
+
+        lottery.status = LotteryStatus.Active;
 
         lotteries[_region] = lottery;
 
@@ -185,7 +217,7 @@ contract Lottery {
         );
     }
 
-    function addNewChance(bytes32 _region, uint16 _latitude, uint16 _longitude) public payable
+    function putOnNewLocation(bytes32 _region, uint16 _latitude, uint16 _longitude) public payable
     lotteryExists(_region)
     positionMatchesRegion(_region, _latitude, _longitude)
     lotteryActive(_region)
@@ -209,9 +241,30 @@ contract Lottery {
             now
         );
     }
+
+    // TODO
+    function endLottery(bytes32 _region) public 
+    lotteryExists(_region)
+    lotteryFinished(_region)
+    {
+
+    }
+
+    // Selecting winner
+
+    // TODO modifiers
+    function setWinningPoint(bytes32 _region) internal {
+        lotteries[_region].winningPoint[0] = uint16(randomInRange(lotteries[_region].latitudeMin, lotteries[_region].latitudeMax));
+        lotteries[_region].winningPoint[1] = uint16(randomInRange(lotteries[_region].longitudeMin, lotteries[_region].longitudeMax));
+    }
+
     // TODO change it ASAP - this function is highly unsecure
-    function random() private view returns (uint8) {
-        return uint8(uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty)))%251);
+    function random() private view returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty)));
+    }
+
+    function randomInRange(uint min, uint max) private view returns (uint) {
+        return random() % (max - min + 1);
     }
 
 
