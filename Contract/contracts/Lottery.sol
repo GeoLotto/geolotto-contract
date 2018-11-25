@@ -124,7 +124,6 @@ contract Lottery {
     }
 
     function getCouponsNumbers() public view  returns(uint) {
-        emit CouponsGetting(coupons.length);
         return coupons.length;
     }
 
