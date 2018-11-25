@@ -10,7 +10,7 @@ contract Lottery {
 
     address owner;
     uint nonce = 0;
-    mapping(bytes32 => Lottery) public lotteries;
+    mapping(bytes32 => LotteryGame) public lotteries;
 
     // Types
 
@@ -28,7 +28,7 @@ contract Lottery {
         uint8 areaWinningRatio;
     }
 
-    struct Lottery {
+    struct LotteryGame {
 
         LotteryStatus status;
 
@@ -149,7 +149,7 @@ contract Lottery {
         uint16 _firstWinningAreaRadius,
         uint16 _secondWinningAreaRadius) public onlyOwner() {
         
-        Lottery memory lottery;
+        LotteryGame memory lottery;
 
         lottery.launchTime = now;
         lottery.endTime = _endTime;
@@ -276,10 +276,11 @@ contract Lottery {
 
                 distanceToWinningPoint = sqrt(uint(_latitudesPoweredSubstraction + _longitudesPoweredSubstraction));
 
+                LotteryWinnings memory winning;
+
                 if(lotteries[_region].winningAreasRadius[0] >= distanceToWinningPoint) {
                     isParticipationPointInWinningArea = true;
                     if(_actuallyIteratedWin == 0) {
-                        LotteryWinnings memory winning;
                         winning.winner = checkedAddress;
                         winning.deposit = lotteries[_region].participations[checkedAddress][j].deposit;
                         winning.inAreaDuePercentageRatio = 75;
@@ -296,7 +297,6 @@ contract Lottery {
                 } else if(lotteries[_region].winningAreasRadius[1] >= distanceToWinningPoint && lotteries[_region].winningAreasRadius[0] <= distanceToWinningPoint) {
                     isParticipationPointInWinningArea = true;
                     if(_actuallyIteratedWin == 0) {
-                        LotteryWinnings memory winning;
                         winning.winner = checkedAddress;
                         winning.deposit = lotteries[_region].participations[checkedAddress][j].deposit;
                         winning.inAreaDuePercentageRatio = 75;
