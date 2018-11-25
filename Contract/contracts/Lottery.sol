@@ -247,11 +247,10 @@ contract Lottery {
     {
         // Set participation to winning point
 
-        int longSubstraction = int(lotteries[participations[_participationId].lotteryId].winningLong) - int(participations[_participationId].longitude);
         int latSubstraction = int(lotteries[participations[_participationId].lotteryId].winningLat) - int(participations[_participationId].latitude);
 
-        int longSubPow = longSubstraction * longSubstraction;
-        int latSubPow = latSubstraction * latSubstraction;
+        int longSubPow = int(lotteries[participations[_participationId].lotteryId].winningLong) - int(participations[_participationId].longitude) * int(lotteries[participations[_participationId].lotteryId].winningLong) - int(participations[_participationId].longitude);
+        int latSubPow = int(lotteries[participations[_participationId].lotteryId].winningLat) - int(participations[_participationId].latitude) * int(lotteries[participations[_participationId].lotteryId].winningLat) - int(participations[_participationId].latitude);
 
         uint distance = sqrt(uint(longSubPow + latSubPow));
 
