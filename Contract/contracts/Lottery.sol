@@ -1,308 +1,192 @@
 pragma solidity ^0.4.24;
 
 contract Lottery {
-    // Fields
-    address public owner;
-    LotteryGame[] public lotteries;
-    Participation[] public participations;
+    enum CouponState { Pending, Lost, AwaitingClaim, Claimed }
+    enum LotteryState { Finished, Active }
+    LotteryState state = LotteryState.Active;
+    address owner;
+    uint endTime;
 
-    // Enums
-    enum LotteryStatus { Finished, Active }
+    uint depositsInWinningArea;
+
+    uint winningRadius;
+
+    uint winningLongitude;
+    uint winningLatitude;
+
+    uint maxLatitude;
+    uint minLatitude;
+
+    uint maxLongitude;
+    uint minLongitude;
+
+    Coupon[] coupons;
 
     // Structs
 
-    struct Participation {
-        address participant;
-        uint deposit;
-        uint joinedOn;
+    struct Coupon {
+        uint longitude;
+        uint latitude;
+
+        address emiter;
+
+        uint value;
+
+        uint timestamp;
+
+        CouponState state;
 
         uint reward;
-        bool canWithdraw;
-
-        uint16 longitude;
-        uint16 latitude;
-
-        uint lotteryId;
-    }
-
-    struct LotteryGame {
-        address creator;
-
-        LotteryStatus status;
-
-        uint raisedFunds;
-
-        uint launchedOn;
-        uint finishesOn;
-
-        uint32 maxLocationsNumber;
-        uint minDeposit;
-
-        uint winningAreaDepositsSum;
-
-        address[] participants;
-
-        // Lottery region params
-        uint16 latitudeMin;
-        uint16 latitudeMax;
-        uint16 longitudeMin;
-        uint16 longitudeMax;
-
-        bytes32 region;
-
-        uint16 winningAreaRadius;
-
-        uint16 winningLat;
-        uint16 winningLong;
-    }
-
-    // modifiers
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only the contract owner can call this method");
-        _;
-    }
-
-    modifier lotteryExists(uint _lotteryId) {
-        require(lotteries.length - 1 >= _lotteryId, "Lottery with the given ID does not exist");
-        _;
-    }
-
-    modifier lotteryIsActive(uint _lotteryId) {
-        require(lotteries[_lotteryId].status == LotteryStatus.Active && lotteries[_lotteryId].finishesOn > now, "Lottery with the given ID does not exist");
-        _;
-    }
-
-    modifier lotteryIsNotFull(uint _lotteryId) {
-        require(lotteries[_lotteryId].maxLocationsNumber >= lotteries[_lotteryId].participants.length, "Lottery is full");
-        _;
-    }
-
-    modifier enoughDeposit(uint _lotteryId) {
-        require(msg.value >= lotteries[_lotteryId].minDeposit, "The transaction amount needs to be higher than the game minimum deposit");
-        _;
-    }
-
-    modifier lotteryFinished(uint _lotteryId) {
-        require(lotteries[_lotteryId].finishesOn < now, "Lottery is still active");
-        _;
-    }
-
-    modifier participationExists(uint _participationId) {
-        require(participations.length - 1 > _participationId, "Participation with the given id does not exist");
-        _;
-    }
-    modifier lotteryStatusFinished(uint _lotteryId) {
-        require(lotteries[_lotteryId].status == LotteryStatus.Finished, "Lottery status is still active");
-        _;
-    }
-
-    modifier isWinner(uint _participationId) {
-        require(participations[_participationId].participant == msg.sender, "Only the participation sender can call this function");
-        _;
-    }
-
-    modifier isWon(uint _participationId) {
-        require(participations[_participationId].reward != 0, "To call this method the participatio needs to be a winner");
-        _;
     }
 
     // Events
 
-    event LotteryCreation(
-        bytes32 region, 
-        uint16 latitudeMin, 
-        uint16 latitudeMax, 
-        uint16 longitudeMin, 
-        uint16 longitudeMax, 
-        uint minDeposit, 
-        uint64 maxLocationsNumber, 
-        uint startedOn, 
-        uint endsOn,
-        uint16 winningAreaRadius,
-        uint lotteryId
-    );
- 
-    event LotteryJoin(
+    event NewCoupon(
         address emiter,
-        uint lotteryId,
-        uint16 latitude,
-        uint16 longitude,
-        uint deposit,
-        uint when,
-        uint participationId
+        uint value,
+        uint longitude,
+        uint latitude,
+        uint joined,
+        uint couponId
     );
 
-    event LotteryFinished(
-        uint lotteryId
-    );
-
-    event LotteryWin(
+    event AwaitingWin(
+        uint couponId,
         address winner,
-        uint reward,
-        uint lotteryId,
-        uint participationId
+        uint reward
     );
+
+    event Claimed(
+        uint couponId,
+        address winner,
+        uint reward
+    );
+
+    // Modifiers
+
+    modifier isFinished() {
+        require(now > endTime, "Lottery is still active");
+        _;
+    }
+
+    modifier isActive() {
+        require(state == LotteryState.Active, "Lottery is not active");
+        _;
+    }
+
+    modifier couponExists(uint _couponId) {
+        require(coupons.length - 1 > _couponId, "Coupon does nort exist");
+        _;
+    }
+
+    modifier isCouponOwner(uint _couponId) {
+        require(coupons[_couponId].emiter == msg.sender, "This function can be called just by the coupon owner");
+        _;
+    }
+
+    modifier couponAwaiting(uint _couponId) {
+        require(coupons[_couponId].state == CouponState.AwaitingClaim, "Coupon needs to be claimed");
+        _;
+    }
 
     // Methods
 
-    constructor(address _owner) public {
-        owner = _owner;
-    }
-
-    function createNewLottery(
-        bytes32 _region,
-        uint16 _latitudeMin,
-        uint16 _latitudeMax,
-        uint16 _longitudeMin,
-        uint16 _longitudeMax,
-        uint _minDeposit, 
-        uint32 _maxLocationsNumber,
+    constructor(
+        address _owner, 
+        uint _winningRadius, 
         uint _endTime, 
-        uint16 _winningAreaRadius
-        ) public onlyOwner() {
-
-        uint lotteryId = lotteries.push(LotteryGame({
-            creator: msg.sender,
-            status: LotteryStatus.Active,
-            launchedOn: now,
-            finishesOn: _endTime,
-            maxLocationsNumber: _maxLocationsNumber,
-            minDeposit: _minDeposit,
-            latitudeMin: _latitudeMin,
-            latitudeMax: _latitudeMax,
-            longitudeMin: _longitudeMin,
-            longitudeMax: _longitudeMax,
-            winningAreaRadius: _winningAreaRadius,
-            participants: new address[](0),
-            region: _region,
-            winningLat: 0,
-            winningLong: 0,
-            raisedFunds: 0,
-            winningAreaDepositsSum: 0
-        }));
-
-        emit LotteryCreation(
-            _region,
-            _latitudeMin,
-            _latitudeMax,
-            _longitudeMin,
-            _longitudeMax,
-            _minDeposit,
-            _maxLocationsNumber,
-            now,
-            _endTime,
-            _winningAreaRadius,
-            lotteryId);
+        uint _maxLatitude, 
+        uint _minLatitude, 
+        uint _maxLongitude, 
+        uint _minLongitude) 
+        public 
+    {
+        owner = _owner;
+        winningRadius = _winningRadius;
+        endTime = _endTime;
     }
 
-    function joinLottery(uint _lotteryId, uint16 _lat, uint16 _long) public payable
-    lotteryExists(_lotteryId)
-    lotteryIsActive(_lotteryId)
-    lotteryIsNotFull(_lotteryId)
-    enoughDeposit(_lotteryId)
+    function addNewCoupon(uint _longitude, uint _latitude) public payable
+    isActive()
     {
-        uint participationId = participations.push(Participation({
-            participant: msg.sender,
-            deposit: msg.value,
-            joinedOn: now,
-            longitude: _long,
-            latitude: _lat,
-            lotteryId: _lotteryId,
-            reward: 0,
-            canWithdraw: false
+        uint couponId = coupons.push(Coupon({
+            longitude: _longitude,
+            latitude: _latitude,
+            emiter: msg.sender,
+            timestamp: now,
+            state: CouponState.Pending,
+            value: msg.value,
+            reward: 0
         }));
 
-        lotteries[_lotteryId].raisedFunds += msg.value;
-
-        emit LotteryJoin(
+        emit NewCoupon(
             msg.sender,
-            _lotteryId,
-            _lat,
-            _long,
             msg.value,
+            _longitude,
+            _latitude,
             now,
-            participationId
+            couponId
         );
     }
 
-    function endLottery(uint _lotteryId) public
-    lotteryExists(_lotteryId)
-    lotteryFinished(_lotteryId)
-    {   
-        lotteries[_lotteryId].status = LotteryStatus.Finished;
-        (uint16 winningLong, uint16 winningLat) = setWinningPoint(_lotteryId);
-        lotteries[_lotteryId].winningLong = winningLong;
-        lotteries[_lotteryId].winningLat = winningLat;
-        lotteries[_lotteryId].winningAreaDepositsSum = countDepositsInWinningArea(_lotteryId);
-        emit LotteryFinished(_lotteryId);
-    }
-
-    function didWon(uint _participationId) public
-    participationExists(_participationId)
-    lotteryExists(participations[_participationId].lotteryId)
-    lotteryFinished(participations[_participationId].lotteryId)
-    lotteryStatusFinished(participations[_participationId].lotteryId)
-    returns(bool)
+    function endLottery() public 
+    isFinished()
     {
-        // Set participation to winning point
+        state = LotteryState.Finished;
+        uint nonce = 0;
+        winningLongitude = randomInRange(minLongitude ,maxLongitude, nonce);
+        nonce++;
+        winningLatitude = randomInRange(minLatitude ,maxLatitude, nonce);
+        depositsInWinningArea = countDepositsInWinningArea();
+    }
 
-        int latSubstraction = int(lotteries[participations[_participationId].lotteryId].winningLat) - int(participations[_participationId].latitude);
+    function didWon(uint _couponId) public
+    isFinished()
+    couponExists(_couponId)
+    {
+        int latSub = int(winningLatitude) - int(coupons[_couponId].latitude);
+        int longSub = int(winningLongitude) - int(coupons[_couponId].longitude);
 
-        int longSubPow = int(lotteries[participations[_participationId].lotteryId].winningLong) - int(participations[_participationId].longitude) * int(lotteries[participations[_participationId].lotteryId].winningLong) - int(participations[_participationId].longitude);
-        int latSubPow = int(lotteries[participations[_participationId].lotteryId].winningLat) - int(participations[_participationId].latitude) * int(lotteries[participations[_participationId].lotteryId].winningLat) - int(participations[_participationId].latitude);
+        uint distance = sqrt(uint((latSub * latSub) + (longSub * longSub)));
 
-        uint distance = sqrt(uint(longSubPow + latSubPow));
-
-        if(distance < lotteries[participations[_participationId].lotteryId].winningAreaRadius) {
-            participations[_participationId].reward = (participations[_participationId].deposit * 100) / (lotteries[participations[_participationId].lotteryId].winningAreaDepositsSum * 100);
-            participations[_participationId].canWithdraw = true;
-            return true;
+        if(distance < winningRadius) {
+            coupons[_couponId].state = CouponState.AwaitingClaim;
+            uint reward = (coupons[_couponId].value*100)/(depositsInWinningArea*100);
+            coupons[_couponId].reward = reward;
+            emit AwaitingWin(_couponId, coupons[_couponId].emiter, reward);
+        } else {
+            coupons[_couponId].state = CouponState.Lost;
         }
-        participations[_participationId].reward = 0;
-        participations[_participationId].canWithdraw = false;
-        return false;
     }
 
-    // TODO
-    function withdrawReward(uint _participationId) public
-    participationExists(_participationId)
-    lotteryExists(participations[_participationId].lotteryId)
-    lotteryFinished(participations[_participationId].lotteryId)
-    lotteryStatusFinished(participations[_participationId].lotteryId)
-    isWinner(_participationId)
-    isWon(_participationId)
-    {   
-        // lotteries[participations[_participationId].lotteryId].creator.transfer((participations[_participationId].reward) * 1/20);
-        msg.sender.transfer((participations[_participationId].reward) * 19/20);
+    function requestReward(uint _couponId) public
+    isFinished()
+    couponExists(_couponId)
+    isCouponOwner(_couponId)
+    couponAwaiting(_couponId)
+    {
+        msg.sender.transfer(coupons[_couponId].reward * 19/20);
+        emit AwaitingWin(_couponId, coupons[_couponId].emiter, coupons[_couponId].reward * 19/20);
     }
 
-    function setWinningPoint(uint _lotteryId) internal returns(uint16, uint16) {
-        uint16 winningLong = randomInRange(lotteries[_lotteryId].longitudeMin, lotteries[_lotteryId].longitudeMax);
-        uint16 winningLat = randomInRange(lotteries[_lotteryId].latitudeMin, lotteries[_lotteryId].latitudeMax);
-        return (winningLong, winningLat);
-    }
-
-    function countDepositsInWinningArea(uint _lotteryId) internal returns(uint) {
+    function countDepositsInWinningArea() internal returns(uint) {
         uint result;
-        for(uint i = 0; i < participations.length; i++) {
-            if(participations[i].lotteryId == _lotteryId) {
-                // Set participation to winning point
+        for(uint i = 0; i < coupons.length; i++) {
+            int latSub = int(winningLatitude) - int(coupons[i].latitude);
+            int longSub = int(winningLongitude) - int(coupons[i].longitude);
 
-                int longSubstraction = int(lotteries[_lotteryId].winningLong) - int(participations[i].longitude);
-                int latSubstraction = int(lotteries[_lotteryId].winningLat) - int(participations[i].latitude);
+            uint distance = sqrt(uint((latSub * latSub) + (longSub * longSub)));
 
-                int longSubPow = longSubstraction * longSubstraction;
-                int latSubPow = latSubstraction * latSubstraction;
-
-                uint distance = sqrt(uint(longSubPow + latSubPow));
-
-                if(distance < lotteries[_lotteryId].winningAreaRadius) {
-                    result += participations[i].deposit;
-                }
+            if(distance < winningRadius) {
+                result += coupons[i].value;
             }
         }
         return result;
+    }
+
+    function randomInRange(uint min, uint max, uint nonce) internal returns(uint) {
+        uint rand = uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty, nonce)));
+        return uint(rand % (max - min + 1));
     }
 
     function sqrt(uint x) private view returns (uint y) {
@@ -314,8 +198,4 @@ contract Lottery {
         }
     }
 
-    function randomInRange(uint16 min, uint16 max) internal returns(uint16) {
-        uint rand = uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty)));
-        return uint16(rand % (max - min + 1));
-    }
 }
