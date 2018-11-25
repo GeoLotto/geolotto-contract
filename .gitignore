@@ -78,3 +78,15 @@ typings/
 
 #DynamoDB Local files 
 .dynamodb/ 
+
+# Builds
+
+Contract/build/
+
+# node_modules
+
+Contract/node_modules/
+
+# yarn
+
+Contract/yarn.lock
