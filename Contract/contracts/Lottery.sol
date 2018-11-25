@@ -2,9 +2,9 @@ pragma solidity ^0.4.24;
 
 contract Lottery {
     // Fields
-    address owner;
-    LotteryGame[] lotteries;
-    Participation[] participations;
+    address public owner;
+    LotteryGame[] public lotteries;
+    Participation[] public participations;
 
     // Enums
     enum LotteryStatus { Finished, Active }
@@ -26,6 +26,8 @@ contract Lottery {
     }
 
     struct LotteryGame {
+        address creator;
+
         LotteryStatus status;
 
         uint raisedFunds;
@@ -95,6 +97,16 @@ contract Lottery {
         _;
     }
 
+    modifier isWinner(uint _participationId) {
+        require(participations[_participationId].participant == msg.sender, "Only the participation sender can call this function");
+        _;
+    }
+
+    modifier isWon(uint _participationId) {
+        require(participations[_participationId].reward != 0, "To call this method the participatio needs to be a winner");
+        _;
+    }
+
     // Events
 
     event LotteryCreation(
@@ -112,6 +124,7 @@ contract Lottery {
     );
  
     event LotteryJoin(
+        address emiter,
         uint lotteryId,
         uint16 latitude,
         uint16 longitude,
@@ -122,6 +135,13 @@ contract Lottery {
 
     event LotteryFinished(
         uint lotteryId
+    );
+
+    event LotteryWin(
+        address winner,
+        uint reward,
+        uint lotteryId,
+        uint participationId
     );
 
     // Methods
@@ -143,6 +163,7 @@ contract Lottery {
         ) public onlyOwner() {
 
         uint lotteryId = lotteries.push(LotteryGame({
+            creator: msg.sender,
             status: LotteryStatus.Active,
             launchedOn: now,
             finishesOn: _endTime,
@@ -195,6 +216,7 @@ contract Lottery {
         lotteries[_lotteryId].raisedFunds += msg.value;
 
         emit LotteryJoin(
+            msg.sender,
             _lotteryId,
             _lat,
             _long,
@@ -241,6 +263,19 @@ contract Lottery {
         participations[_participationId].reward = 0;
         participations[_participationId].canWithdraw = false;
         return false;
+    }
+
+    // TODO
+    function withdrawReward(uint _participationId) public
+    participationExists(_participationId)
+    lotteryExists(participations[_participationId].lotteryId)
+    lotteryFinished(participations[_participationId].lotteryId)
+    lotteryStatusFinished(participations[_participationId].lotteryId)
+    isWinner(_participationId)
+    isWon(_participationId)
+    {   
+        // lotteries[participations[_participationId].lotteryId].creator.transfer((participations[_participationId].reward) * 1/20);
+        msg.sender.transfer((participations[_participationId].reward) * 19/20);
     }
 
     function setWinningPoint(uint _lotteryId) internal returns(uint16, uint16) {
