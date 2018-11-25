@@ -62,6 +62,15 @@ contract Lottery {
         uint reward
     );
 
+    event Lost(
+        uint couponId,
+        address looser
+    );
+
+    event LotteryFinished(
+        uint when
+    );
+
     // Modifiers
 
     modifier isFinished() {
@@ -142,6 +151,7 @@ contract Lottery {
         nonce++;
         winningLatitude = randomInRange(minLatitude ,maxLatitude, nonce);
         depositsInWinningArea = countDepositsInWinningArea();
+        emit LotteryFinished(now);
     }
 
     function didWon(uint _couponId) public
@@ -160,6 +170,7 @@ contract Lottery {
             emit AwaitingWin(_couponId, coupons[_couponId].emiter, reward);
         } else {
             coupons[_couponId].state = CouponState.Lost;
+            emit Lost(_couponId, coupons[_couponId].emiter);
         }
     }
 
