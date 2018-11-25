@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 contract Lottery {
     enum CouponState { Pending, Lost, AwaitingClaim, Claimed }
@@ -104,6 +104,10 @@ contract Lottery {
         owner = _owner;
         winningRadius = _winningRadius;
         endTime = _endTime;
+        maxLongitude = _maxLongitude;
+        minLongitude = _minLongitude;
+        maxLongitude = _maxLatitude;
+        minLatitude = _minLatitude;
     }
 
     function addNewCoupon(uint _longitude, uint _latitude) public payable
@@ -169,7 +173,7 @@ contract Lottery {
         emit AwaitingWin(_couponId, coupons[_couponId].emiter, coupons[_couponId].reward * 19/20);
     }
 
-    function countDepositsInWinningArea() internal returns(uint) {
+    function countDepositsInWinningArea() internal view returns(uint) {
         uint result;
         for(uint i = 0; i < coupons.length; i++) {
             int latSub = int(winningLatitude) - int(coupons[i].latitude);
@@ -184,12 +188,12 @@ contract Lottery {
         return result;
     }
 
-    function randomInRange(uint min, uint max, uint nonce) internal returns(uint) {
+    function randomInRange(uint min, uint max, uint nonce) internal view returns(uint) {
         uint rand = uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty, nonce)));
         return uint(rand % (max - min + 1));
     }
 
-    function sqrt(uint x) private view returns (uint y) {
+    function sqrt(uint x) private pure returns (uint y) {
         uint z = (x + 1) / 2;
         y = x;
         while (z < y) {
