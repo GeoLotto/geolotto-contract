@@ -20,7 +20,7 @@ contract Lottery {
     uint maxLongitude;
     uint minLongitude;
 
-    Coupon[] coupons;
+    Coupon[] public coupons;
 
     // Structs
 
@@ -40,6 +40,10 @@ contract Lottery {
     }
 
     // Events
+
+    event CouponsGetting(
+        uint couponsNumber
+    );
 
     event NewCoupon(
         address emiter,
@@ -117,6 +121,11 @@ contract Lottery {
         minLongitude = _minLongitude;
         maxLongitude = _maxLatitude;
         minLatitude = _minLatitude;
+    }
+
+    function getCouponsNumbers() public view  returns(uint) {
+        emit CouponsGetting(coupons.length);
+        return coupons.length;
     }
 
     function addNewCoupon(uint _longitude, uint _latitude) public payable
