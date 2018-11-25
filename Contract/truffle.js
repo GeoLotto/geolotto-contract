@@ -12,6 +12,10 @@
  *   },
  */
 
+var HDWalletProvider = require("truffle-hdwallet-provider");
+const MNEMONIC =
+  "trust main hurt olive rigid traffic napkin farm tired worry cactus shoe";
+
 module.exports = {
   // See <http://truffleframework.com/docs/advanced/configuration>
   // to customize your Truffle configuration!
@@ -20,6 +24,15 @@ module.exports = {
       host: "localhost",
       port: 7545,
       network_id: "*"
+    },
+    ropsten: {
+      provider: function() {
+        return new HDWalletProvider(
+          MNEMONIC,
+          "https://ropsten.infura.io/9defdc016d654060a6d372cbe5b2de0c9defdc016d654060a6d372cbe5b2de0c"
+        );
+      },
+      network_id: 3
     }
   },
   solc: {
