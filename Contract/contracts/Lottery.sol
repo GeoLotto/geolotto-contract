@@ -250,7 +250,134 @@ contract Lottery {
 
     }
 
-    // Selecting winner
+    // Selecting winner TODO modifiers
+    function setWinners(bytes32 _region) internal {
+        int16 _winningLatitude = int16(lotteries[_region].winningPoint[0]);
+        int16 _winningLongitude = int16(lotteries[_region].winningPoint[1]);
+        uint _actuallyIteratedWin;
+        for(uint i = 0; i < lotteries[_region].participants.length; i++) {
+            address checkedAddress = lotteries[_region].participants[i];
+            for(uint j = 0; j < lotteries[_region].participations[checkedAddress].length; j++) {
+                bool isParticipationPointInWinningArea;
+
+                // Check if is in part.point is in main win circle
+
+                uint distanceToWinningPoint;
+
+                // Count this distance
+                int16 _partLat = int16(lotteries[_region].participations[checkedAddress][j].position[0]);
+                int16 _partLon = int16(lotteries[_region].participations[checkedAddress][j].position[1]);
+
+                int16 _latitudesSubstraction = (_partLat - _winningLatitude);
+                int16 _latitudesPoweredSubstraction = _latitudesSubstraction * _latitudesSubstraction;
+
+                int16 _longitudesSubstraction = (_partLon - _winningLongitude);
+                int16 _longitudesPoweredSubstraction = _longitudesSubstraction * _longitudesSubstraction;
+
+                distanceToWinningPoint = sqrt(uint(_latitudesPoweredSubstraction + _longitudesPoweredSubstraction));
+
+                if(lotteries[_region].winningAreasRadius[0] >= distanceToWinningPoint) {
+                    isParticipationPointInWinningArea = true;
+                    if(_actuallyIteratedWin == 0) {
+                        LotteryWinnings memory winning;
+                        winning.winner = checkedAddress;
+                        winning.deposit = lotteries[_region].participations[checkedAddress][j].deposit;
+                        winning.inAreaDuePercentageRatio = 75;
+                        winning.areaWinningRatio = uint8((lotteries[_region].participations[checkedAddress][j].deposit * 100) / (getFirstWinningAreaDepositsSum(_region) * 100));
+                        _actuallyIteratedWin = lotteries[_region].winnings.push(winning) - 1;
+
+                    } else {
+                        lotteries[_region].winnings[_actuallyIteratedWin].winner = checkedAddress;
+                        lotteries[_region].winnings[_actuallyIteratedWin].deposit = lotteries[_region].participations[checkedAddress][j].deposit;
+                        lotteries[_region].winnings[_actuallyIteratedWin].inAreaDuePercentageRatio = 25;
+                        lotteries[_region].winnings[_actuallyIteratedWin].areaWinningRatio  = uint8((lotteries[_region].participations[checkedAddress][j].deposit * 100) / (getSecondWinningAreaDepositsSum(_region) * 100));
+                        _actuallyIteratedWin++;
+                    }
+                } else if(lotteries[_region].winningAreasRadius[1] >= distanceToWinningPoint && lotteries[_region].winningAreasRadius[0] <= distanceToWinningPoint) {
+                    isParticipationPointInWinningArea = true;
+                    if(_actuallyIteratedWin == 0) {
+                        LotteryWinnings memory winning;
+                        winning.winner = checkedAddress;
+                        winning.deposit = lotteries[_region].participations[checkedAddress][j].deposit;
+                        winning.inAreaDuePercentageRatio = 75;
+                        winning.areaWinningRatio = uint8((lotteries[_region].participations[checkedAddress][j].deposit * 100) / (getFirstWinningAreaDepositsSum(_region) * 100));
+                        _actuallyIteratedWin = lotteries[_region].winnings.push(winning) - 1;
+
+                    } else {
+                        lotteries[_region].winnings[_actuallyIteratedWin].winner = checkedAddress;
+                        lotteries[_region].winnings[_actuallyIteratedWin].deposit = lotteries[_region].participations[checkedAddress][j].deposit;
+                        lotteries[_region].winnings[_actuallyIteratedWin].inAreaDuePercentageRatio = 25;
+                        lotteries[_region].winnings[_actuallyIteratedWin].areaWinningRatio  = uint8((lotteries[_region].participations[checkedAddress][j].deposit * 100) / (getSecondWinningAreaDepositsSum(_region) * 100));
+                        _actuallyIteratedWin++;
+                    }
+                } else {
+                    isParticipationPointInWinningArea = false;
+                }
+            }
+        }
+    }
+
+    function getFirstWinningAreaDepositsSum(bytes32 _region) internal returns(uint) {
+        uint result = 0;
+        int16 _winningLatitude = int16(lotteries[_region].winningPoint[0]);
+        int16 _winningLongitude = int16(lotteries[_region].winningPoint[1]);
+        for(uint i = 0; i < lotteries[_region].participants.length; i++) {
+            address checkedAddress = lotteries[_region].participants[i];
+            for(uint j = 0; j < lotteries[_region].participations[checkedAddress].length; j++) {
+                // Check if is in part.point is in main win circle
+
+                uint distanceToWinningPoint;
+
+                // Count this distance
+                int16 _partLat = int16(lotteries[_region].participations[checkedAddress][j].position[0]);
+                int16 _partLon = int16(lotteries[_region].participations[checkedAddress][j].position[1]);
+
+                int16 _latitudesSubstraction = (_partLat - _winningLatitude);
+                int16 _latitudesPoweredSubstraction = _latitudesSubstraction * _latitudesSubstraction;
+
+                int16 _longitudesSubstraction = (_partLon - _winningLongitude);
+                int16 _longitudesPoweredSubstraction = _longitudesSubstraction * _longitudesSubstraction;
+
+                distanceToWinningPoint = sqrt(uint(_latitudesPoweredSubstraction + _longitudesPoweredSubstraction));
+
+                if(lotteries[_region].winningAreasRadius[0] >= distanceToWinningPoint) {
+                    result += lotteries[_region].participations[checkedAddress][j].deposit;
+                }
+            }
+        }
+        return result;
+    }
+
+    function getSecondWinningAreaDepositsSum(bytes32 _region) internal returns(uint) {
+        uint result = 0;
+        int16 _winningLatitude = int16(lotteries[_region].winningPoint[0]);
+        int16 _winningLongitude = int16(lotteries[_region].winningPoint[1]);
+        for(uint i = 0; i < lotteries[_region].participants.length; i++) {
+            address checkedAddress = lotteries[_region].participants[i];
+            for(uint j = 0; j < lotteries[_region].participations[checkedAddress].length; j++) {
+                // Check if is in part.point is in main win circle
+
+                uint distanceToWinningPoint;
+
+                // Count this distance
+                int16 _partLat = int16(lotteries[_region].participations[checkedAddress][j].position[0]);
+                int16 _partLon = int16(lotteries[_region].participations[checkedAddress][j].position[1]);
+
+                int16 _latitudesSubstraction = (_partLat - _winningLatitude);
+                int16 _latitudesPoweredSubstraction = _latitudesSubstraction * _latitudesSubstraction;
+
+                int16 _longitudesSubstraction = (_partLon - _winningLongitude);
+                int16 _longitudesPoweredSubstraction = _longitudesSubstraction * _longitudesSubstraction;
+
+                distanceToWinningPoint = sqrt(uint(_latitudesPoweredSubstraction + _longitudesPoweredSubstraction));
+
+                if(lotteries[_region].winningAreasRadius[1] >= distanceToWinningPoint && lotteries[_region].winningAreasRadius[0] <= distanceToWinningPoint) {
+                    result += lotteries[_region].participations[checkedAddress][j].deposit;
+                }
+            }
+        }
+        return result;
+    }
 
     // TODO modifiers
     function setWinningPoint(bytes32 _region) internal {
@@ -265,6 +392,15 @@ contract Lottery {
 
     function randomInRange(uint min, uint max) private view returns (uint) {
         return random() % (max - min + 1);
+    }
+
+    function sqrt(uint x) private view returns (uint y) {
+        uint z = (x + 1) / 2;
+        y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
     }
 
 
