@@ -201,5 +201,4 @@ contract Lottery {
             z = (x / z + z) / 2;
         }
     }
-
 }
